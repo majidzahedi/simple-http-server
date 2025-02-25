@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-use std::sync::mpsc::{self, Receiver};
+use std::net::{TcpListener, TcpStream};
+use std::path::Path;
+use std::sync::mpsc::{self};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, sleep};
-use std::time::Duration;
-use std::usize;
+use std::thread::{self};
+use std::{fs, usize};
 
 #[derive(Debug)]
 struct HttpRequest {
@@ -123,19 +123,47 @@ fn main() {
     }
 }
 
-fn handle_request(request: &HttpRequest) -> String {
+fn handle_api_request(request: &HttpRequest) -> String {
     match request.path.as_str() {
-        "/" => format_response("200 Ok", "Welcome to the Home Page!"),
-        "/about" => format_response("200 Ok", "About Us Page"),
-        "/hello" => format_response("200 Ok", "Hello, Rustacean!"),
-        _ => format_response("404 Not Found", "Page Not Found"),
+        "/api/hello" => {
+            format_response("200 Ok", r#"{"message":"Hello ,Api"}"#, "application/json")
+        }
+        _ => format_response(
+            "404 Not Found",
+            r#"{"error":"Not found"}"#,
+            "application/json",
+        ),
     }
 }
 
-fn format_response(status: &str, body: &str) -> String {
+fn handle_request(request: &HttpRequest) -> String {
+    if request.path.starts_with("/api/") {
+        return handle_api_request(request);
+    }
+
+    let mut file_path = format!("public{}", request.path);
+    if file_path == "public/" {
+        file_path = "public/index.html".to_string();
+    }
+
+    if Path::new(&file_path).exists() {
+        if let Ok(contents) = fs::read_to_string(&file_path) {
+            return format_response("200 Ok", &contents, "text/html");
+        }
+    }
+
+    format_response(
+        "404 Not Found",
+        "<h1>404 - Page Not Found </h1>",
+        "text/htlm",
+    )
+}
+
+fn format_response(status: &str, body: &str, content_type: &str) -> String {
     format!(
-        "HTTP/1.1 {status}\r\nContent-Length:{}\r\n\r\n{body}",
-        body.len()
+        "HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n{body}",
+        body.len(),
+        content_type
     )
 }
 
